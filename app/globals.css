@@ -620,4 +620,7 @@ footer{background:#0f0d0a;border-top:3px solid var(--blue);padding:3rem 2rem;tex
   a {
   text-decoration: none;
 }
-}
+
+        a { text-decoration: none; }
+
+      }

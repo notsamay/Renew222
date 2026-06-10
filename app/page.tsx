@@ -1,7 +1,42 @@
 'use client';
 
+import { supabase } from "@/lib/supabase";
 import React, { useState, useEffect, useRef } from "react";
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface FundraisingStats {
+  total_raised_dollars: number;
+  total_donors: number;
+  campaign_goal_pct: number;
+  phase_goal_pct: number;
+}
+
+interface CampaignConfig {
+  campaign_goal: number;
+  phase1_goal: number;
+  phase_label: string;
+}
+
+interface RenovationItem {
+  id: number;
+  title: string;
+  estimated_cost: number;
+  description: string;
+  display_order: number;
+  is_active: boolean;
+}
+
+interface Donor {
+  id: number;
+  full_name: string;
+  amount_dollars: number;
+  type: 'alumni' | 'parent' | string;
+  rollNumber?: string;
+  relationship?: string;
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function Home() {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -32,14 +67,21 @@ export default function Home() {
     { year: '2025', label: '2025', title: 'Renewal Begins', description: 'The Lambeth Chapter enters its 119th year with 137 active members, the largest in chapter history. The Foundation owns 222 Langdon outright. The building that C.B. Fritz built in 1926, that Acacia won at sealed-bid auction in 1965, that the Foundation preserved through two dormant decades, now houses the most active and largest Acacia Wisconsin chapter on record. Renewing 222 is the next step.' },
   ];
 
-  const renovationItems = [
-    { name: 'Exterior masonry restoration and tuckpointing', cost: '$85K', reason: 'The exterior brick and mortar joints are deteriorating, compromising the structural integrity and waterproofing of the building. Tuckpointing restores the joints while preserving the historic masonry.' },
-    { name: 'Roof repairs and weatherproofing', cost: '$120K', reason: 'The roof is aging and has developed leaks that damage interior spaces. Proper weatherproofing is essential to prevent water damage, mold growth, and further deterioration of the structure.' },
-    { name: 'Window rehabilitation and trim refinishing', cost: '$75K', reason: 'Original wooden windows are failing and not energy efficient. Rehabilitation preserves the historic character while restoring function and thermal performance.' },
-    { name: 'Entryway and front steps restoration', cost: '$12K', reason: 'The front entrance is the first impression of the building and shows significant wear. Restoration ensures safe access and maintains the architectural character of this 1926 landmark.' },
-    { name: 'Interior common-space preservation', cost: '$5K', reason: 'Common areas need maintenance and cosmetic updates to remain welcoming to residents and guests while preserving historic details.' },
-    { name: 'Mechanical upgrades for long-term stability', cost: '$3K', reason: 'HVAC, electrical, and plumbing systems need modernization to ensure reliability, safety, and comfort for chapter members.' },
-  ];
+  const [renovationItems, setRenovationItems] = useState<RenovationItem[]>([]);
+
+  useEffect(() => {
+    async function loadRenovations() {
+      const { data } = await supabase
+        .from('renovation_items')
+        .select('*')
+        .eq('is_active', true)
+        .order('display_order');
+
+      setRenovationItems(data || []);
+    }
+
+    loadRenovations();
+  }, []);
 
   const smoothScrollTo = (targetId: string) => {
     const target = document.getElementById(targetId);
@@ -49,7 +91,7 @@ export default function Home() {
     const top = target.getBoundingClientRect().top + window.scrollY - navOffset;
     window.scrollTo({ top, behavior: "smooth" });
   };
-  
+
   const images = [
     '/assets/historicalimages/Historical1.jpg',
     '/assets/historicalimages/Historical2.jpg',
@@ -68,85 +110,109 @@ export default function Home() {
     '/assets/historicalimages/Historical15.JPG',
   ];
 
-  const topDonors = [
-    { name: 'John Alumni', amount: '$25,000', rollNumber: '1200', type: 'alumni' },
-    { name: 'Sarah Patterson', amount: '$18,500', rollNumber: '1350', type: 'alumni' },
-    { name: 'The Davis Family', amount: '$50,000', relationship: 'Parent of 2024', type: 'parent' },
-    { name: 'Robert Chen', amount: '$15,000', rollNumber: '1400', type: 'alumni' },
-    { name: 'Margaret Thompson', amount: '$22,000', rollNumber: '1150', type: 'alumni' },
-    { name: 'David & Linda Brooks', amount: '$35,000', relationship: 'Parent of 2023', type: 'parent' },
-    { name: 'The Garcia Foundation', amount: '$40,000', rollNumber: '1300', type: 'alumni' },
-    { name: 'James Mitchell', amount: '$12,500', relationship: 'Parent of 2025', type: 'parent' },
-    { name: 'James Mitchell', amount: '$12,500', relationship: 'Parent of 2025', type: 'parent' },
-    { name: 'James Mitchell', amount: '$12,500', relationship: 'Parent of 2025', type: 'parent' },
-    { name: 'James Mitchell', amount: '$12,500', relationship: 'Parent of 2025', type: 'parent' },
-    { name: 'James Mitchell', amount: '$12,500', relationship: 'Parent of 2025', type: 'parent' },
-    { name: 'James Mitchell', amount: '$12,500', relationship: 'Parent of 2025', type: 'parent' },
-    { name: 'James Mitchell', amount: '$12,500', relationship: 'Parent of 2025', type: 'parent' },
-    { name: 'James Mitchell', amount: '$12,500', relationship: 'Parent of 2025', type: 'parent' },
-    { name: 'James Mitchell', amount: '$12,500', relationship: 'Parent of 2025', type: 'parent' },
-  ];
+  const [donors, setDonors] = useState<Donor[]>([]);
+
+  useEffect(() => {
+    async function loadDonors() {
+      const { data } = await supabase
+        .from('public_donor_wall')
+        .select('*')
+        .limit(50);
+
+      setDonors(data || []);
+    }
+
+    loadDonors();
+  }, []);
+
+  const [stats, setStats] = useState<FundraisingStats | null>(null);
+
+  useEffect(() => {
+    async function loadStats() {
+      const { data } = await supabase
+        .from('v_fundraising_stats')
+        .select('*')
+        .single();
+
+      setStats(data);
+    }
+
+    loadStats();
+  }, []);
 
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentImageIndex((prev) => (prev + 1) % images.length);
     }, 3500);
-    
+
     return () => clearInterval(interval);
   }, [images.length]);
 
-useEffect(() => {
-  const observer = new IntersectionObserver(
-    (entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          if (entry.target.id === "progress-ring") {
-            setAnimateRing(true);
-          }
+  const [campaign, setCampaign] = useState<CampaignConfig | null>(null);
 
-          if (entry.target.classList.contains("phase-list")) {
-            setAnimatePhase(true);
-          }
-        }
-      });
-    },
-    { threshold: 0.3 }
-  );
+  useEffect(() => {
+    async function loadCampaign() {
+      const { data } = await supabase
+        .from('campaign_config')
+        .select('*')
+        .single();
 
-  const ring = document.getElementById("progress-ring");
-  const phaseList = document.querySelector(".phase-list");
-
-  if (ring) observer.observe(ring);
-  if (phaseList) observer.observe(phaseList);
-
-  return () => observer.disconnect();
-}, []);
-
-useEffect(() => {
-  const syncHeight = () => {
-    if (leftColRef.current && rightColRef.current) {
-      const h = leftColRef.current.offsetHeight;
-      rightColRef.current.style.height = `${h}px`;
-      rightColRef.current.style.maxHeight = `${h}px`;
+      setCampaign(data);
     }
-  };
 
-  // Run immediately, then again after all animations have finished
-  // Last item: 0.9s delay + 0.6s duration = 1.5s. Add buffer → 1600ms
-  syncHeight();
-  const t1 = setTimeout(syncHeight, 100);   // catch early layout
-  const t2 = setTimeout(syncHeight, 1600);  // catch after all animations done
+    loadCampaign();
+  }, []);
 
-  // Keep watching for resize (window width changes)
-  const ro = new ResizeObserver(syncHeight);
-  if (leftColRef.current) ro.observe(leftColRef.current);
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            if (entry.target.id === "progress-ring") {
+              setAnimateRing(true);
+            }
 
-  return () => {
-    clearTimeout(t1);
-    clearTimeout(t2);
-    ro.disconnect();
-  };
-}, [animatePhase]); // ← re-run when animatePhase flips to true
+            if (entry.target.classList.contains("phase-list")) {
+              setAnimatePhase(true);
+            }
+          }
+        });
+      },
+      { threshold: 0.3 }
+    );
+
+    const ring = document.getElementById("progress-ring");
+    const phaseList = document.querySelector(".phase-list");
+
+    if (ring) observer.observe(ring);
+    if (phaseList) observer.observe(phaseList);
+
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const syncHeight = () => {
+      if (leftColRef.current && rightColRef.current) {
+        const h = leftColRef.current.offsetHeight;
+        rightColRef.current.style.height = `${h}px`;
+        rightColRef.current.style.maxHeight = `${h}px`;
+      }
+    };
+
+    syncHeight();
+    const t1 = setTimeout(syncHeight, 100);
+    const t2 = setTimeout(syncHeight, 1600);
+
+    const ro = new ResizeObserver(syncHeight);
+    if (leftColRef.current) ro.observe(leftColRef.current);
+
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      ro.disconnect();
+    };
+  }, [animatePhase]);
+
   return (
     <div>
       <nav>
@@ -163,7 +229,7 @@ useEffect(() => {
           <li><a href="#impact" onClick={(e) => { e.preventDefault(); smoothScrollTo("impact"); }}>Impact</a></li>
           <li><a href="#support" onClick={(e) => { e.preventDefault(); smoothScrollTo("support"); }}>Support</a></li>
         </ul>
-       <a href="/donate" className="nav-give">Support the Campaign</a>
+        <a href="/donate" className="nav-give">Support the Campaign</a>
       </nav>
 
       <main>
@@ -172,15 +238,15 @@ useEffect(() => {
           <div className="hero-container">
             <div className="carousel-section">
               <div className="image-carousel">
-                <img 
-                  src={images[currentImageIndex]} 
+                <img
+                  src={images[currentImageIndex]}
                   alt={`Historical photo ${currentImageIndex + 1}`}
                   className="carousel-image"
                 />
                 <div className="carousel-indicators">
                   {images.map((_, idx) => (
-                    <div 
-                      key={idx} 
+                    <div
+                      key={idx}
                       className={`carousel-dot ${idx === currentImageIndex ? 'active' : ''}`}
                       onClick={() => setCurrentImageIndex(idx)}
                     />
@@ -218,7 +284,7 @@ useEffect(() => {
           <div className="section-content">
             <div className="stat-grid">
               <div className="stat-card">
-                <div className="stat-number">$347,500</div>
+                <div className="stat-number">{stats?.total_raised_dollars.toLocaleString()}</div>
                 <div className="stat-label">Raised to Date</div>
                 <div className="progress-bar">
                   <div className="progress-fill" style={{width: '34.75%'}}></div>
@@ -226,12 +292,12 @@ useEffect(() => {
                 <div className="progress-text">35% of $1M Goal</div>
               </div>
               <div className="stat-card">
-                <div className="stat-number">284</div>
+                <div className="stat-number">{stats?.total_donors}</div>
                 <div className="stat-label">Alumni Donors</div>
               </div>
               <div className="stat-card">
-                <div className="stat-number">120</div>
-                <div className="stat-label">Years of Brotherhood</div>
+                <div className="stat-number">{stats?.campaign_goal_pct}%</div>
+                <div className="stat-label">Campaign Goal Progress</div>
               </div>
               <div className="stat-card">
                 <div className="stat-number">$1M</div>
@@ -280,79 +346,78 @@ useEffect(() => {
             </div>
 
             {/* TIMELINE */}
-<div className="timeline-container">
-  <div className="timeline-wrapper">
+            <div className="timeline-container">
+              <div className="timeline-wrapper">
 
-    <div className="timeline-line">
-      {[...Array(14)].map((_, i) => {
-        const year = 1900 + (i * 10);
-        const position = ((year - 1900) / 130) * 100;
+                <div className="timeline-line">
+                  {[...Array(14)].map((_, i) => {
+                    const year = 1900 + (i * 10);
+                    const position = ((year - 1900) / 130) * 100;
 
-        return (
-          <div
-            key={`tick-${year}`}
-            className="timeline-tick"
-            style={{ left: `${position}%` }}
-          />
-        );
-      })}
-    </div>
+                    return (
+                      <div
+                        key={`tick-${year}`}
+                        className="timeline-tick"
+                        style={{ left: `${position}%` }}
+                      />
+                    );
+                  })}
+                </div>
 
-    <div className="timeline-track">
-      {timelineEvents.map((event) => {
-        const yearNum =
-          event.year === "1920s"
-            ? 1922
-            : parseInt(event.year);
+                <div className="timeline-track">
+                  {timelineEvents.map((event) => {
+                    const yearNum =
+                      event.year === "1920s"
+                        ? 1922
+                        : parseInt(event.year);
 
-        const position = ((yearNum - 1900) / 130) * 100;
+                    const position = ((yearNum - 1900) / 130) * 100;
 
-        return (
-          <div
-            key={event.year}
-            className="timeline-event"
-            style={{ left: `${position}%` }}
-          >
-            <button
-              className={`timeline-diamond ${
-                selectedTimelineYear === event.year ? "active" : ""
-              }`}
-              onClick={() =>
-                setSelectedTimelineYear(
-                  selectedTimelineYear === event.year
-                    ? null
-                    : event.year
-                )
-              }
-              title={event.label}
-            />
-          </div>
-        );
-      })}
-    </div>
+                    return (
+                      <div
+                        key={event.year}
+                        className="timeline-event"
+                        style={{ left: `${position}%` }}
+                      >
+                        <button
+                          className={`timeline-diamond ${
+                            selectedTimelineYear === event.year ? "active" : ""
+                          }`}
+                          onClick={() =>
+                            setSelectedTimelineYear(
+                              selectedTimelineYear === event.year
+                                ? null
+                                : event.year
+                            )
+                          }
+                          title={event.label}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
 
-  </div>
+              </div>
 
-  <div className="timeline-year-markers">
-    {[...Array(14)].map((_, i) => {
-      const year = 1900 + (i * 10);
-      const position = ((year - 1900) / 130) * 100;
+              <div className="timeline-year-markers">
+                {[...Array(14)].map((_, i) => {
+                  const year = 1900 + (i * 10);
+                  const position = ((year - 1900) / 130) * 100;
 
-      return (
-        <div
-          key={year}
-          className="year-marker"
-          style={{ left: `${position}%` }}
-        >
-          <span>{year}</span>
-        </div>
-      );
-    })}
-  </div>
-</div>
+                  return (
+                    <div
+                      key={year}
+                      className="year-marker"
+                      style={{ left: `${position}%` }}
+                    >
+                      <span>{year}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
 
-
-    {selectedTimelineYear && (
+            {selectedTimelineYear && (
               <div className="timeline-info">
                 {timelineEvents.find(e => e.year === selectedTimelineYear) && (
                   <div className="timeline-info-content">
@@ -377,118 +442,123 @@ useEffect(() => {
                 Every gift moves us closer to a fully restored house that will serve brothers for generations to come.
               </p>
               <div className="campaign-card">
-<div className="campaign-grid">
+                <div className="campaign-grid">
 
-  <div className="campaign-fund" ref={leftColRef}>
+                  <div className="campaign-fund" ref={leftColRef}>
 
-    <div className="section-label">Campaign Fund</div>
+                    <div className="section-label">Campaign Fund</div>
 
-    <h3 className="funding-title">
-      Renew 222 Preservation Campaign
-    </h3>
+                    <h3 className="funding-title">
+                      Renew 222 Preservation Campaign
+                    </h3>
 
-    <div className="funding-row">
-      <div className="funding-cell">
-        <div className="funding-amount">$347,500</div>
-        <span className="funding-label">Raised</span>
-      </div>
+                    <div className="funding-row">
+                      <div className="funding-cell">
+                        <div className="funding-amount">${stats?.total_raised_dollars?.toLocaleString() ?? "0"}</div>
+                        <span className="funding-label">Raised</span>
+                      </div>
 
-      <div className="funding-cell">
-        <div className="funding-amount funding-amount-em">34.8%</div>
-        <span className="funding-label">Funded</span>
-      </div>
+                      <div className="funding-cell">
+                        <div className="funding-amount funding-amount-em">{stats?.campaign_goal_pct?.toFixed(1) ?? "0.0"}%</div>
+                        <span className="funding-label">Funded</span>
+                      </div>
 
-      <div className="funding-cell">
-        <div className="funding-amount">$1,000,000</div>
-        <span className="funding-label">Goal</span>
-      </div>
-    </div>
+                      <div className="funding-cell">
+                        <div className="funding-amount"> ${campaign?.campaign_goal?.toLocaleString() ?? "0"}</div>
+                        <span className="funding-label">Goal</span>
+                      </div>
+                    </div>
 
-    <div className="progress-ring-wrapper">
-      <div
-        id="progress-ring"
-        className={`progress-ring ${animateRing ? 'animate' : ''}`}
-      >
-        <div className="progress-center">
-          <div className="progress-value">34.8%</div>
-          <div className="progress-label">Funded</div>
-        </div>
-      </div>
+                    <div className="progress-ring-wrapper">
+                      <div
+                        id="progress-ring"
+                        className={`progress-ring ${animateRing ? 'animate' : ''}`}
+                      >
+                        <div className="progress-center">
+                          <div className="progress-value">{stats?.campaign_goal_pct?.toFixed(1) ?? "0.0"}%</div>
+                          <div className="progress-label">Funded</div>
+                        </div>
+                      </div>
 
-      <div
-        className="phase-1-indicator"
-        style={{ '--phase-angle': '108deg' } as React.CSSProperties}
-      />
+                      <div
+                        className="phase-1-indicator"
+                        style={{
+                          '--phase-angle': `${((stats?.phase_goal_pct ?? 0) * 3.6)}deg`
+                        } as React.CSSProperties}
+                      />
 
-      <div className="ring-center-label">
-        <div className="ring-label-small">Phase 1 Goal</div>
-        <div className="ring-label-large">$300K</div>
-      </div>
-    </div>
+                      <div className="ring-center-label">
+                        <div className="ring-label-small">Phase 1 Goal</div>
+                        <div className="ring-label-large">${campaign?.phase1_goal?.toLocaleString() ?? "0"}</div>
+                      </div>
+                    </div>
 
-    <div className="campaign-phase">
-      <div className="section-label flex justify-center items-center">Phase 1 Renovations</div>
+                    <div className="campaign-phase">
+                      <div className="section-label flex justify-center items-center"> {campaign?.phase_label}</div>
 
-      <h3>What we are restoring first</h3>
+                      <h3>What we are restoring first</h3>
 
-      <ul
-        className={`phase-list phase-list-boxed ${
-          animatePhase ? 'animate' : ''
-        }`}
-      >
-        {renovationItems.map((item, index) => (
-          <li key={index}>
-            <div className="item-content">
-              <div className="item-header">
-                <span className="item-name">{item.name}</span>
-                <span className="item-cost">{item.cost}</span>
+                      <ul
+                        className={`phase-list phase-list-boxed ${
+                          animatePhase ? 'animate' : ''
+                        }`}
+                      >
+                        {/* FIX: added `index` parameter to map callback */}
+                        {renovationItems?.map((item, index) => (
+                          <li key={index}>
+                            <div className="item-content">
+                              <div className="item-header">
+                                <span className="item-name">{item.title}</span>
+
+                                <span className="item-cost">
+                                  ${item.estimated_cost?.toLocaleString()}
+                                </span>
+
+                                <p className="item-description">
+                                  {item.description}
+                                </p>
+                              </div>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                  </div>
+
+                  <div className="donor-wall-section" ref={rightColRef}>
+                    <h3 className="donor-wall-title">Donor Wall</h3>
+
+                    <div className="donor-scroll-container">
+                      {donors.map((donor) => (
+                        <div key={donor.id} className="donor-card">
+                          <div className="donor-name">{donor.full_name}</div>
+                          <div className="donor-amount">${donor.amount_dollars.toLocaleString()}</div>
+
+                          <div className="donor-info">
+                            {donor.type === 'alumni' ? (
+                              <span className="donor-roll">
+                                #{donor.rollNumber}
+                              </span>
+                            ) : (
+                              <span className="donor-parent">
+                                {donor.relationship}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                </div>
               </div>
 
-              <p className="item-description">
-                {item.reason}
-              </p>
-            </div>
-          </li>
-        ))}
-      </ul>
-    </div>
-
-  </div>
-
-  <div className="donor-wall-section" ref={rightColRef}>
-    <h3 className="donor-wall-title">Donor Wall</h3>
-
-    <div className="donor-scroll-container">
-      {topDonors.map((donor, index) => (
-        <div key={index} className="donor-card">
-          <div className="donor-name">{donor.name}</div>
-          <div className="donor-amount">{donor.amount}</div>
-
-          <div className="donor-info">
-            {donor.type === 'alumni' ? (
-              <span className="donor-roll">
-                #{donor.rollNumber}
-              </span>
-            ) : (
-              <span className="donor-parent">
-                {donor.relationship}
-              </span>
-            )}
-          </div>
-        </div>
-      ))}
-    </div>
-  </div>
-
-</div>
-</div>
-
               <div className="support-cta-row">
-            <a href="/donate" className="btn-gold btn-large">Make Your Gift Today</a>
+                <a href="/donate" className="btn-gold btn-large">Make Your Gift Today</a>
                 <button className="btn-ghost btn-large" onClick={() => smoothScrollTo("mission")}>Read Our Mission</button>
               </div>
 
-             
             </div>
           </div>
         </section>
